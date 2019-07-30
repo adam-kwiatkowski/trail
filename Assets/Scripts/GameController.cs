@@ -14,7 +14,11 @@ public class GameController : MonoBehaviour
     public GameObject[] PalettePositions;
     public Vector3 PaletteScale;
     public Piece[] Pieces;
+    public Item[] Items;
     public Material HighlightMaterial;
+    public FloatVariable OverallScore;
+    public FloatVariable TurnScore;
+    public FloatVariable Multiplier;
 
     private GameObject SelectedPiece = null;
     private Block StartBlock;
@@ -36,6 +40,8 @@ public class GameController : MonoBehaviour
 
     void Start()
     {
+        OverallScore.Value = 0;
+
         InitializeBoard();
         InitializePalette();
         PlaceTarget();
@@ -94,6 +100,25 @@ public class GameController : MonoBehaviour
             Piece piece = Instantiate<Piece>(Pieces[Random.Range(0, Pieces.Length)]);
             if (piece.Reflectable) piece.transform.Rotate(Random.Range(0, 2) * 180, 0, 0);
             if (piece.Rotable) piece.transform.Rotate(0, Random.Range(0, 4) * 90, 0);
+
+            if (Random.Range(0, 1) == 0)
+            {
+                //Debug.Log("Spawning item");
+                //Item item = Instantiate<Item>(Items[Random.Range(0, Items.Length)]);
+                //int childIndex = Random.Range(0, piece.transform.childCount);
+                //item.transform.parent = piece.transform;
+                //item.transform.localPosition = piece.transform.GetChild(childIndex).localPosition;
+                //item.transform.Translate(0, 0.5f, 0);
+                //piece.transform.GetChild(childIndex).GetComponent<Block>().Item = item;
+                //Block bonus = Instantiate<Block>(BonusBlocks[(Random.Range(0, BonusBlocks.Length))]);
+                //Vector3 localPosition = piece.transform.GetChild(childIndex).transform.localPosition;
+                //Destroy(piece.transform.GetChild(childIndex).gameObject);
+                //bonus.transform.parent = piece.transform;
+                //bonus.transform.localPosition = localPosition;
+                //if (piece.transform.rotation.eulerAngles.x == 180)
+                //    bonus.transform.Rotate(180, 0, 0);
+            }
+
             piece.transform.localScale = PaletteScale;
             piece.PalettePosition = PalettePositions[i].transform.position;
             piece.SetCentralPosition(piece.PalettePosition);
@@ -127,7 +152,6 @@ public class GameController : MonoBehaviour
         SelectPiece();
         MovePiece();
         PlacePiece();
-        UpdateScore();
         if (PaletteItems == 0)
             InitializePalette();
     }
@@ -150,6 +174,7 @@ public class GameController : MonoBehaviour
         {
             RaycastHit hit;
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
             if (Physics.Raycast(ray, out hit))
             {
                 if (hit.collider.tag == "Block")
@@ -168,19 +193,22 @@ public class GameController : MonoBehaviour
         if (SelectedPiece != null)
         {
             Transform zeroChild = SelectedPiece.transform.GetChild(0);
-            Vector3 roundedPosition = new Vector3
-            {
-                x = Mathf.Round(zeroChild.position.x),
-                y = Mathf.Round(zeroChild.position.y),
-                z = Mathf.Round(zeroChild.position.z)
-            };
+            Vector3 roundedPosition = zeroChild.position;
+            // = new Vector3
+            //{
+            //x = Mathf.Round(zeroChild.position.x),
+            //y = Mathf.Round(zeroChild.position.y),
+            //z = Mathf.Round(zeroChild.position.z)
+            //};
+
+            Vector3 direction = Vector3.Normalize(Camera.main.transform.rotation * Vector3.forward);
 
             int layerMask = 1 << 8;
             RaycastHit hit;
 
-            if (Physics.Raycast(roundedPosition, Vector3.down, out hit, Mathf.Infinity, layerMask))
+            if (Physics.Raycast(roundedPosition, direction, out hit, Mathf.Infinity, layerMask))
             {
-                Debug.DrawRay(roundedPosition, Vector3.down * hit.distance, Color.yellow);
+                Debug.DrawRay(roundedPosition, direction * hit.distance, Color.yellow);
 
                 int startX = hit.collider.transform.GetComponent<BoardSpace>().x;
                 int startY = hit.collider.transform.GetComponent<BoardSpace>().y;
@@ -247,7 +275,7 @@ public class GameController : MonoBehaviour
             }
             else
             {
-                Debug.DrawRay(roundedPosition, Vector3.down * 1000, Color.white);
+                Debug.DrawRay(roundedPosition, direction * 1000, Color.white);
             }
         }
     }
@@ -311,7 +339,7 @@ public class GameController : MonoBehaviour
                     Block block = SelectedPiece.transform.GetChild(i).GetComponent<Block>();
                     block.transform.position = TilesBelow[i].transform.position;
                     BlockMap[x, y] = block;
-                    ValueMap[x, y] = 10.0f;
+                    ValueMap[x, y] = 1;
                 }
                 PaletteItems--;
                 FindPath();
@@ -353,9 +381,11 @@ public class GameController : MonoBehaviour
             WayPoint = Sphere.transform.position;
             WayPointIndex = 0;
 
+            // Sphere reached it's final destination
             ValueMap[StartBlock.x, StartBlock.y] = 0.0f;
             Destroy(StartBlock.gameObject);
             StartBlock = EndBlock;
+            UpdateScore();
             PlaceTarget();
 
             Path = new List<PathFind.Point>();
@@ -387,6 +417,13 @@ public class GameController : MonoBehaviour
                     if (x != EndBlock.x || y != EndBlock.y)
                     {
                         ValueMap[x, y] = 0.0f;
+                        TurnScore.Value += BlockMap[x, y].value;
+                        if (BlockMap[x, y].Item != null)
+                        {
+                            if (BlockMap[x, y].Item.name == "Star")
+                                Multiplier.Value++;
+                            //Destroy(BlockMap[x, y])
+                        }
                         Destroy(BlockMap[x, y].gameObject);
                         BlockMap[x, y] = null;
                     }
@@ -401,7 +438,9 @@ public class GameController : MonoBehaviour
 
     private void UpdateScore()
     {
-        
+        OverallScore.Value += TurnScore.Value * (Multiplier.Value + 1);
+        TurnScore.Value = 0;
+        Multiplier.Value = 0;
     }
     #endregion
 }

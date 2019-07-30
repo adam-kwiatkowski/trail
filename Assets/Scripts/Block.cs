@@ -7,6 +7,8 @@ public class Block : MonoBehaviour
     public int GroupNumber = 0;
     public int x;
     public int y;
+    public float value = 10.0f;
+    public Item Item;
 
     //public 
 
